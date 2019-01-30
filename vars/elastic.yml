@@ -1,0 +1,4 @@
+# (c) 2018 DataNexus Inc.  All Rights Reserved.
+---
+java_version: '1.8.0'
+elastic_version: '6.5.4'

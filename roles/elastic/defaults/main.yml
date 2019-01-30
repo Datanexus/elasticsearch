@@ -1,0 +1,3 @@
+# basic elastic variables
+elastic:
+  base_url: https://artifacts.elastic.co/downloads

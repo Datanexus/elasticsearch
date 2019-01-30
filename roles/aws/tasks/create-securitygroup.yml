@@ -1,0 +1,47 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# create AWS postgresql security group rules
+---
+- name: ELASTICSEARCH OVERLAY | creating elasticsearch private external security group
+  local_action:
+    module: ec2_group
+    name: "dnsg_{{ project }}_elasticsearch_private_external"
+    description: "elasticsearch ingress and unrestricted egress rules (ansible)"
+    vpc_id: "{{ specified_vpc.vpcs.0.id }}"
+    region: "{{ region }}"
+    rules:
+      # rest interface
+      - proto: tcp
+        from_port: "{{ elasticsearch.config.restPort }}"
+        to_port: "{{ elasticsearch.config.restPort }}"
+        cidr_ip: "{{ external_subnet }}"
+      # inter node communication
+      - proto: tcp
+        from_port: "{{ elasticsearch.config.inter_node }}"
+        to_port: "{{ elasticsearch.config.inter_node }}"
+        cidr_ip: "{{ external_subnet }}"
+    rules_egress:
+      # Allow all outbound
+      - proto: all
+        cidr_ip: 0.0.0.0/0
+  when: "'elasticsearch' in groups | default([])"
+  register: sg_elasticsearch_external
+
+- name: ELASTICSEARCH OVERLAY | creating kibana private external security group
+  local_action:
+    module: ec2_group
+    name: "dnsg_{{ project }}_kibana_private_external"
+    description: "kibana ingress and unrestricted egress rules (ansible)"
+    vpc_id: "{{ specified_vpc.vpcs.0.id }}"
+    region: "{{ region }}"
+    rules:
+      - proto: tcp
+        from_port: "{{ kibana.config.port }}"
+        to_port: "{{ kibana.config.port }}"
+        cidr_ip: "{{ external_subnet }}"
+    rules_egress:
+      # Allow all outbound
+      - proto: all
+        cidr_ip: 0.0.0.0/0
+  when: "'elasticsearch' in groups | default([])"
+  register: sg_kibana_external

@@ -1,0 +1,27 @@
+# (c) Copyright 2018 DataNexus Inc.  All Rights Reserved.
+#
+#
+---
+# CentOS / Redhat 7
+- block:
+  
+  - name: ELASTIC OVERLAY | installing Java packages
+    package:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - epel-release-7-11
+      - "java-{{ java_version }}-openjdk"
+      - "java-{{ java_version }}-openjdk-devel"
+      
+  - name: ELASTIC OVERLAY | installing version {{ elastic_version }} of elasticsearch and kibana
+    package:
+      name: "{{ elastic.base_url}}/{{ item }}"
+      state: present
+    with_items:
+      - "elasticsearch/elasticsearch-{{ elastic_version }}.rpm"
+      - "kibana/kibana-{{ elastic_version }}-x86_64.rpm"
+    notify: yum-clean-all
+        
+  become: yes
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'

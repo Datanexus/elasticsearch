@@ -1,0 +1,60 @@
+# (c) 2019 DataNexus Inc.  All Rights Reserved.
+#
+# apply AWS elasticearch security group rules for multi-interface systems
+---
+# this is only necessary when modifying interface 0
+- name: ELASTICSEARCH OVERLAY | getting id of default security group
+  ec2_group_facts:
+    region: "{{ region }}"
+    filters:
+      group-name: "dnsg_{{ project }}_ssh_private_internal"
+      vpc-id: "{{ specified_vpc.vpcs.0.id }}"
+  register: sg_ssh_private
+  when: cloud =="aws"
+
+- name: ELASTICSEARCH OVERLAY | discovering elasticsearch instances
+  ec2_instance_facts:
+    region: "{{ region }}"
+    filters:
+      instance-state-name: running
+      "tag:Tenant": "{{ tenant }}"
+      "tag:Project": "{{ project }}"
+      "tag:Domain": "{{ domain }}"
+      "tag:Application": 'elasticsearch'
+      "tag:Cluster": "{{ cluster | default ('a') }}"
+      "tag:Dataflow": "{{ dataflow | default ('none') }}"
+  register: all_elasticsearch_nodes
+  when:
+    - cloud == 'aws'
+    - "'elasticsearch' in groups | default([])"
+
+- block:
+
+  # construct list of all interfaces attached to elasticsearch nodes
+  - set_fact:
+      elasticsearch_interfaces: "{{ all_elasticsearch_nodes.instances | map(attribute='network_interfaces') | list }}"
+
+  # apply internal SSH rule
+  - name: ELASTICSEARCH OVERLAY | applying elasticsearch security rules to interface 0
+    ec2_eni:
+      region: "{{ region }}"
+      eni_id: "{{ item.network_interface_id }}"
+      security_groups:
+        - "{{ sg_ssh_private.security_groups.0.group_id }}"
+    with_items: "{{ elasticsearch_interfaces }}"
+    when: item.attachment.device_index == 0
+
+  # apply elasticsearch specific rules
+  - name: ELASTICSEARCH OVERLAY | applying elasticsearch external security rules to interface 1
+    ec2_eni:
+      region: "{{ region }}"
+      eni_id: "{{ item.network_interface_id }}"
+      security_groups:
+        - "{{ sg_elasticsearch_external.group_id }}"
+        - "{{ sg_kibana_external.group_id }}"
+    with_items: "{{ elasticsearch_interfaces }}"
+    when: item.attachment.device_index == 1
+    
+  when:
+    - "'elasticsearch' in groups | default([])"
+    - groups.elasticsearch | length > 0

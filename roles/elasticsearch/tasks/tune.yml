@@ -1,0 +1,34 @@
+# (c) Copyright 2018 DataNexus Inc.  All Rights Reserved.
+#
+#
+--- 
+- block:
+
+  - name: CONFLUENT OVERLAY (TUNING) | jvm heap size is...{{ ((jvm_heap | default('auto')) | int != 0) | ternary ((jvm_heap),('automatic')) }}
+    set_fact:
+      jvm_heap_mem="{{ ((jvm_heap | default('auto')) | int != 0) | ternary ((jvm_heap),((ansible_memtotal_mb | int / 2048) | round(0,'floor') | int)) }}"    
+
+  - name: CONFLUENT OVERLAY (TUNING) | validating {{ jvm_heap_mem }}gb needed <= {{ ((ansible_memtotal_mb | int / 2048) | round(0,'floor') | int) }}gb total
+    assert:
+      that:
+        - (jvm_heap_mem | int) <= ((ansible_memtotal_mb | int / 2048) | round(0,'floor') | int) 
+      fail_msg: "heap space inadequate: allocate more RAM, decrease requested heap space, or set 'jvm_heap' to 'auto'"
+      success_msg: "system has enough heap space"   
+
+  - name: ELASTICSEARCH OVERLAY (TUNING) | configuring initial size of total heap space for {{ elasticsearch.service_name }}
+    lineinfile:
+      path: "{{ elasticsearch.jvm_config }}"
+      regexp: '^-Xms'
+      backrefs: yes
+      line: "-Xms{{ jvm_heap_mem }}g"
+    notify: restart elasticsearch
+  
+  - name: ELASTICSEARCH OVERLAY (TUNING) | configuring maximum size of total heap space for {{ elasticsearch.service_name }}
+    lineinfile:
+      path: "{{ elasticsearch.jvm_config }}"
+      regexp: '^-Xmx'
+      backrefs: yes
+      line: "-Xmx{{ jvm_heap_mem }}g"
+    notify: restart elasticsearch
+
+  become: yes

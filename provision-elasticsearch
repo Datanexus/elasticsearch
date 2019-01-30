@@ -1,0 +1,100 @@
+#!/usr/bin/env ansible-playbook
+# (c) 2018 DataNexus Inc.  All Rights Reserved.
+#
+# main routine for provisioning confluent kafka
+---   
+# note that the tags are not currently used, but are present for future integration into
+# the datanexus infrastructure components  
+- name: ELASTICSEARCH OVERLAY | discovering {{ cloud }} networking
+  tags:
+    - elasticsearch
+  hosts: localhost
+  connection: local
+  vars_files:
+    - vars/elastic.yml
+  gather_facts: no
+  tasks:
+    - include_role:
+        name: aws
+        tasks_from: discover-vpc
+      when: cloud == 'aws'
+
+    - include_role:
+        name: azure
+        tasks_from: discover-resourcegroup
+      when: cloud == 'azure'
+
+- name: ELASTICSEARCH OVERLAY | creating {{ cloud }} security groups
+  tags:
+    - elasticsearch
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  tasks:
+    - include_role:
+        name: aws
+        tasks_from: create-securitygroup
+      when: cloud == 'aws'
+
+- name: ELASTICSEARCH OVERLAY | applying {{ cloud }} security groups
+  tags:
+    - elasticsearch
+  hosts: localhost
+  connection: local
+  vars_files:
+    - vars/elastic.yml
+  gather_facts: yes
+  tasks:
+    - include_role:
+        name: aws
+        tasks_from: apply-securitygroup
+      when: cloud == 'aws'
+
+    - include_role:
+        name: azure
+        tasks_from: modify-existing-securitygroup
+      when: cloud == 'azure'
+
+- name: ELASTIC OVERLAY | installing elastic packages across nodes
+  hosts: elasticsearch
+  tags:
+    - elasticsearch
+  vars_files:
+    - vars/elastic.yml
+  gather_facts: yes
+  tasks:
+    - import_role:
+        name: elastic
+
+- name: ELASTICSEARCH OVERLAY | building elasticsearch public internal host group
+  tags:
+    - elasticsearch
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: ELASTICSEARCH OVERLAY | building elasticsearch public internal host group
+      add_host: hostname="{{ hostvars[item].ansible_eth1.ipv4.address }}" groupname=elastic_public
+      with_items: "{{ groups['elasticsearch'] }}"
+      when: "'elasticsearch' in groups | default([])"
+
+- name: ELASTICSEARCH OVERLAY | configuring elasticsearch
+  hosts: elasticsearch
+  tags:
+    - elasticsearch
+  vars_files:
+    - vars/elasticsearch.yml
+  gather_facts: yes
+  tasks:
+    - import_role:
+        name: elasticsearch
+        
+- name: ELASTICSEARCH OVERLAY | configuring kibana
+  hosts: elasticsearch
+  tags:
+    - elasticsearch
+  vars_files:
+    - vars/kibana.yml
+  gather_facts: yes
+  tasks:
+    - import_role:
+        name: kibana
