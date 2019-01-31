@@ -22,7 +22,8 @@
   # use chown here because file: does not recurse well
   - name: KIBANA OVERLAY | fixing kibana ownership because jesus....
     command: chown -R {{ kibana.user }}:{{ kibana.group }} /usr/share/kibana
-    warn: no
+    args:
+      warn: no
   
   - name: KIBANA OVERLAY | fixing kibana ownership because jesus....
     file:
