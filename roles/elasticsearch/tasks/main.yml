@@ -1,0 +1,103 @@
+# (c) Copyright 2018 DataNexus Inc.  All Rights Reserved.
+#
+#
+---
+# pre-tune the JVM for ~50% of available memory
+- import_tasks: tune.yml
+
+- import_tasks: interface-facts.yml
+
+- block:
+
+  - name: ELASTICSEARCH OVERLAY | checking existing {{ elasticsearch.config.elasticsearch_data_dir }}
+    stat:
+      path: "{{ elasticsearch.config.elasticsearch_data_dir }}"
+    register: elasticsearch_data
+      
+  - name: ELASTICSEARCH OVERLAY | ensuring {{ elasticsearch.config.elasticsearch_data_dir }} exists
+    file:
+      path: "{{ elasticsearch.config.elasticsearch_data_dir }}"
+      owner: "{{ elasticsearch.user }}"
+      group: "{{ elasticsearch.group }}"
+      state: directory
+      mode: 0750
+    when: not elasticsearch_data.stat.exists
+    
+  - name: ELASTICSEARCH OVERLAY | configuring data directory for {{ elasticsearch.service_name }}
+    lineinfile:
+      path: "{{ elasticsearch.config_file }}"
+      regexp: '^path.data:'
+      line: "path.data: {{ elasticsearch_data_dir | default(elasticsearch.config.elasticsearch_data_dir) }}"
+    notify: restart elasticsearch
+  
+  - name: ELASTICSEARCH OVERLAY | configuring {{ elasticsearch.service_name }} interface
+    lineinfile:
+      path: "{{ elasticsearch.config_file }}"
+      regexp: '^network.host:'
+      line: "network.host: {{ elasticsearch_interface_ipv4 }}"
+      insertafter: '^#network.host:'
+    notify: restart elasticsearch
+  
+  - name: ELASTICSEARCH OVERLAY | configuring {{ elasticsearch.service_name }} port
+    lineinfile:
+      path: "{{ elasticsearch.config_file }}"
+      regexp: '^http.port:'
+      line: "http.port: {{ elasticsearch.config.restPort }}"
+      insertafter: '^#http.port:'
+    notify: restart elasticsearch
+  
+  - name: ELASTICSEARCH OVERLAY | configuring {{ elasticsearch.service_name }} initial cluster
+    lineinfile:
+      path: "{{ elasticsearch.config_file }}"
+      regexp: '^discovery.zen.ping.unicast.hosts:'
+      line: "discovery.zen.ping.unicast.hosts: [\"{{ groups['elastic_public'] | join('\",\"') }}\"]"
+      insertafter: '^#discovery.zen.ping.unicast.hosts:'
+    notify: restart elasticsearch
+
+  - name: ELASTICSEARCH OVERLAY | setting {{ elasticsearch.service_name }} minimum nodes to {{ (groups['elasticsearch'] | length | int / 2 + 1) | round(0,'floor') | int }}
+    lineinfile:
+      path: "{{ elasticsearch.config_file }}"
+      regexp: '^discovery.zen.minimum_master_nodes:'
+      line: "discovery.zen.minimum_master_nodes: {{ (groups['elasticsearch'] | length | int / 2 + 1) | round(0,'floor') | int }}"
+      insertafter: '^#discovery.zen.minimum_master_nodes:'
+    notify: restart elasticsearch
+
+#
+#   - name: ELASTICSEARCH OVERLAY  | installing {{ kafka.service_name }} into {{ kafka.user_service }}
+#     template:
+#       src: confluent.kafka.j2
+#       dest: "{{ kafka.user_service }}/confluent-kafka"
+#       mode: 0755
+#       owner: "{{ kafka.user }}"
+#       group: "{{ kafka.group }}"
+#
+  become: yes
+
+- block:
+
+  - name: ELASTICSEARCH OVERLAY | creating systemd override directory
+    file:
+      path: "{{ elasticsearch.systemd_override }}"
+      owner: "{{ elasticsearch.user }}"
+      group: "{{ elasticsearch.group }}"
+      state: directory
+      mode: 0750
+
+  # - name: ELASTICSEARCH OVERLAY  | installing {{ elasticsearch.service_name }} environment overrride
+  #   template:
+  #     src: environment.j2
+  #     dest: "{{ elasticsearch.systemd_override }}/override.conf"
+  #     mode: 0640
+  #     owner: "{{ elasticsearch.user }}"
+  #     group: "{{ elasticsearch.group }}"
+  #   notify:
+  #     - reload systemd
+  #     - restart elasticsearch
+
+  - name: ELASTICSEARCH OVERLAY | starting {{ elasticsearch.service_name }}
+    systemd:
+      name: "{{ elasticsearch.service_name }}"
+      state: started
+
+  become: yes
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'

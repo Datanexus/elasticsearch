@@ -1,0 +1,13 @@
+# (c) Copyright 2018 DataNexus Inc.  All Rights Reserved.
+#
+# handlers used during elasticsearch installation
+---
+- name: reload systemd
+  command: systemctl daemon-reload
+  become: true
+
+- name: restart elasticsearch
+  systemd:
+    name: "{{ elasticsearch.service_name }}"
+    state: restarted
+  become: true

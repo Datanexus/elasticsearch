@@ -1,0 +1,8 @@
+# platform ports
+elasticsearch:
+  config:
+    restPort: '9200'
+    inter_node: '9300'
+kibana:
+  config:
+    port: '5601'

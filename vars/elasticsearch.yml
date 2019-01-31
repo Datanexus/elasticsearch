@@ -1,0 +1,6 @@
+# (c) 2018 DataNexus Inc.  All Rights Reserved.
+---
+# this needs to be quoted as a string for concatenation purposes
+elasticsearch_data_dir: /var/lib/elasticsearch
+# this can either be 'auto' or an integer for JVM heap settings
+jvm_heap: auto

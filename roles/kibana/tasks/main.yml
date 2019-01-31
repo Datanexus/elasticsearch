@@ -1,0 +1,107 @@
+# (c) Copyright 2018 DataNexus Inc.  All Rights Reserved.
+#
+#
+--- 
+- import_tasks: interface-facts.yml
+
+- block:
+  
+  - name: KIBANA OVERLAY | adding kibana group because elastic failed
+    group:
+      name: "{{ kibana.group }}"
+      state: present
+      
+  - name: KIBANA OVERLAY | adding kibana user because elastic failed
+    user:
+      name: "{{ kibana.user }}"
+      groups: "{{ kibana.group }}"
+      shell: /sbin/nologin
+      comment: "kibana user"
+      state: present
+  
+  # use chown here because file: does not recurse well
+  - name: KIBANA OVERLAY | fixing kibana ownership because jesus....
+    command: chown -R {{ kibana.user }}:{{ kibana.group }} /usr/share/kibana
+    args:
+      warn: no
+  
+  - name: KIBANA OVERLAY | fixing kibana ownership because jesus....
+    file:
+      path: /var/run/kibana.pid
+      owner: "{{ kibana.user }}"
+      group: "{{ kibana.group }}"
+      mode: 0644
+      state: touch
+    
+  - name: KIBANA OVERLAY | configuring {{ kibana.service_name }} port
+    lineinfile:
+      path: "{{ kibana.config_file }}"
+      regexp: '^server.port:'
+      line: "server.port: {{ kibana.config.port }}"
+      insertafter: '^#server.port:'
+    notify: restart kibana
+    
+  - name: KIBANA OVERLAY | configuring {{ kibana.service_name }} interface
+    lineinfile:
+      path: "{{ kibana.config_file }}"
+      regexp: '^server.host:'
+      line: "server.host: {{ kibana_interface_ipv4 }}"
+      insertafter: '^#server.host:'
+    notify: restart kibana
+  
+  - name: KIBANA OVERLAY | configuring {{ kibana.service_name }} elasticsearch interface
+    lineinfile:
+      path: "{{ kibana.config_file }}"
+      regexp: '^elasticsearch.url:'
+      line: "elasticsearch.url: \"http://{{ kibana_interface_ipv4 }}:{{ elasticsearch.config.restPort }}\""
+      insertafter: '^#elasticsearch.url:'
+    notify: restart kibana
+  
+  - name: KIBANA OVERLAY | configuring {{ kibana.service_name }} pid file
+    lineinfile:
+      path: "{{ kibana.config_file }}"
+      regexp: '^pid.file:'
+      line: "pid.file: /var/run/kibana.pid"
+      insertafter: '^#pid.file:'
+    notify: restart kibana
+
+  # - name: KIBANA OVERLAY  | installing {{ kafka.service_name }} into {{ kafka.user_service }}
+ #    template:
+ #      src: confluent.kafka.j2
+ #      dest: "{{ kafka.user_service }}/confluent-kafka"
+ #      mode: 0755
+ #      owner: "{{ kafka.user }}"
+ #      group: "{{ kafka.group }}"
+
+  
+     
+  become: yes
+
+- block:
+
+  - name: KIBANA OVERLAY | creating systemd override directory
+    file:
+      path: "{{ kibana.systemd_override }}"
+      owner: "{{ kibana.user }}"
+      group: "{{ kibana.group }}"
+      state: directory
+      mode: 0750
+
+  # - name: KIBANA OVERLAY | installing {{ kibana.service_name }} environment overrride
+#     template:
+#       src: environment.j2
+#       dest: "{{ kibana.systemd_override }}/override.conf"
+#       mode: 0640
+#       owner: "{{ kibana.user }}"
+#       group: "{{ kibana.group }}"
+#     notify:
+#       - reload systemd
+#       - restart kibana
+
+  - name: KIBANA OVERLAY | starting {{ kibana.service_name }}
+    systemd:
+      name: "{{ kibana.service_name }}"
+      state: started
+
+  become: yes
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
