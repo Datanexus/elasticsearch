@@ -25,13 +25,13 @@
     args:
       warn: no
   
-  - name: KIBANA OVERLAY | fixing kibana ownership because jesus....
+  - name: KIBANA OVERLAY | fixing kibana pid file because jesus....
     file:
-      path: /var/run/kibana.pid
+      path: /var/run/kibana
       owner: "{{ kibana.user }}"
       group: "{{ kibana.group }}"
-      mode: 0644
-      state: touch
+      mode: 0755
+      state: directory
     
   - name: KIBANA OVERLAY | configuring {{ kibana.service_name }} port
     lineinfile:
@@ -61,7 +61,7 @@
     lineinfile:
       path: "{{ kibana.config_file }}"
       regexp: '^pid.file:'
-      line: "pid.file: /var/run/kibana.pid"
+      line: "pid.file: /var/run/kibana/kibana.pid"
       insertafter: '^#pid.file:'
     notify: restart kibana
 
