@@ -8,6 +8,7 @@
     state: present
   with_items:
     - epel-release-7-11
+  become: yes  
   when: ansible_distribution == 'CentOS'
       
 # CentOS / Redhat 7
