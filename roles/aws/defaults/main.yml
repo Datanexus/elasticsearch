@@ -6,3 +6,7 @@ elasticsearch:
 kibana:
   config:
     port: '5601'
+datanexus:
+  cidr: 10.10.0.0/16
+  internal_subnet: 10.10.1.0/24
+  external_subnet: 10.10.2.0/24
